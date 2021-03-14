@@ -1,0 +1,88 @@
+download and install headless(no desktop) pi os image to sd card
+https://www.raspberrypi.org/software/
+
+##################
+# get serial console working
+##################
+
+#install usb serial driver
+http://www.prolific.com.tw/US/ShowProduct.aspx?p_id=229&pcid=41
+
+#enable serial console
+mount card and enable serial console!
+edit /boot/config.txt add... 
+	dtoverlay=dwc2
+	enable_uart=1
+
+edit /boot/cmdline.txt add...
+	modules-load=dwc2,g_serial
+
+create a symlink
+cd /Volumes/rootfs/etc/systemd/system/getty.target.wants
+ln -s /lib/systemd/system/getty@.service getty@ttyGS0.service
+
+screen /dev/tty.usbmodem14101 115200,cs8
+quit = Ctrl-A Ctrl-D
+
+##################
+#speed ups...
+##################
+
+#console - disable bluetooth 
+sudo systemctl disable hciuart.service
+sudo systemctl disable bluealsa.service
+sudo systemctl disable bluetooth.service
+
+#sudo systemctl disable dhcpcd.service
+#sudo systemctl disable networking.service
+#sudo systemctl disable ntp.service
+#sudo systemctl disable wifi-country.service
+
+#sudo systemctl disable raspi-config.service
+sudo systemctl disable ssh.service
+sudo systemctl disable dphys-swapfile.service
+sudo systemctl disable keyboard-setup.service
+sudo systemctl disable apt-daily.service
+sudo systemctl disable avahi-daemon.service
+sudo systemctl disable triggerhappy.service
+
+
+###### sudo nano /boot/cmdline.txt
+add quiet before rootwait
+
+###### sudo vi /boot/config.txt
+# Set the bootloader delay
+boot_delay=0
+
+# Disable the rainbow splash screen
+disable_splash=1
+
+# Disable Bluetooth
+dtoverlay=disable-bt
+
+# Put important gpios into input mode to avoid firing during boot
+gpio=5,6,12,13,19,16,26,20,21,10,9,11,24,26=ip
+
+
+##################
+#setup (on running box)
+##################
+
+sudo raspi-config
+- set wifi
+
+# install pigpio
+sudo apt install python-setuptools python3-setuptools
+wget https://github.com/joan2937/pigpio/archive/master.zip
+unzip master.zip
+cd pigpio-master
+make
+sudo make install
+
+# install application
+sudo apt-get -y install git
+mkdir git && cd git
+git clone https://github.com/smdjeff/rom-hat
+
+
+
