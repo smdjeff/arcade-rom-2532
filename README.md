@@ -1,4 +1,4 @@
-# EPROM Pi Hat
+# Vintage 2532 arcade ROM programmer for Raspberry Pi
 
 * Most ROM programmers that support vintage ROMs require old PC hardware and interfaces like ISA, LPT ports that are no longer readily available.
 * USB based programmers like the TL866 don't support the high voltages, long programming cycles and high currents required of vintage EEPROMs.
