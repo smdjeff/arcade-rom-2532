@@ -22,6 +22,7 @@
 #define EN_VCC                   26
 #define EN_NOE                   20
 #define EN_NCE                   21
+#define EN_NPGM                  EN_NCE
 
 #define SPI_MOSI                 10
 #define D_DIR                    9
