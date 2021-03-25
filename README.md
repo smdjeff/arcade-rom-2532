@@ -13,3 +13,5 @@
 ![](docs/roms.jpg)
 
 ![](docs/copper.jpg)
+
+![](docs/assembled.jpg)
