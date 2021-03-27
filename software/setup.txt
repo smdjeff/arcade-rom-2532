@@ -2,26 +2,28 @@ download and install headless(no desktop) pi os image to sd card
 https://www.raspberrypi.org/software/
 
 
-##################
+######################################################
 # get serial console working (older raspberry pi)
-##################
+######################################################
 
-mount card and enable serial console!
+mount card and enable serial console
 edit /boot/config.txt add... 
 dtoverlay=pi3-disable-bt
 
-requires TTL/USB adapter such as [this one from Adafruit[(https://www.adafruit.com/product/954)
-connected to pins 8 and 10 on the Pi header.
+USB connector does not support serial communications
+requires TTL/USB adapter such as this one from Adafruit https://www.adafruit.com/product/954
+connect to pins 8 and 10 on the Pi header
 
-##################
+
+######################################################
 # get serial console working (pi zero and newer)
-##################
+######################################################
 
 #install usb serial driver
 http://www.prolific.com.tw/US/ShowProduct.aspx?p_id=229&pcid=41
 
 #enable serial console
-mount card and enable serial console!
+mount card and enable serial console
 edit /boot/config.txt add... 
 	dtoverlay=dwc2
 	enable_uart=1
@@ -36,9 +38,9 @@ ln -s /lib/systemd/system/getty@.service getty@ttyGS0.service
 screen /dev/tty.usbmodem14101 115200,cs8
 quit = Ctrl-A Ctrl-D
 
-##################
+######################################################
 #speed ups...
-##################
+######################################################
 
 #console - disable bluetooth 
 sudo systemctl disable hciuart.service
