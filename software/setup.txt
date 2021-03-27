@@ -1,8 +1,20 @@
 download and install headless(no desktop) pi os image to sd card
 https://www.raspberrypi.org/software/
 
+
 ##################
-# get serial console working
+# get serial console working (older raspberry pi)
+##################
+
+mount card and enable serial console!
+edit /boot/config.txt add... 
+dtoverlay=pi3-disable-bt
+
+requires TTL/USB adapter such as [this one from Adafruit[(https://www.adafruit.com/product/954)
+connected to pins 8 and 10 on the Pi header.
+
+##################
+# get serial console working (pi zero and newer)
 ##################
 
 #install usb serial driver
