@@ -8,7 +8,8 @@
 * A real bi-directional level shifter for the ROM's data pins.
 * An analog mux supporting the ROM's full high voltages and current.
 * Simple C driver program used directly on the Pi's command line.
-* Supports several vintage classic arcade machines ROMs - like those in PacMan and Donkey Kong.
+* [Smart single-byte retry algorithm](https://www.youtube.com/watch?v=HBokTF31uQM) accounts for difficult to program adddresses and lower VPP voltages.
+* Supports several vintage classic arcade machine ROMs - like those in Space Invaders, Donkey Kong and Pacman.
 
 ![](docs/roms.jpg)
 
