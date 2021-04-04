@@ -20,8 +20,10 @@
 
 #define EN_VPP                   16
 #define EN_VCC                   26
-#define EN_NOE                   20
-#define EN_NCE                   21
+
+//  hack: unfortunately these pins were reversed on schematic rev 1
+#define EN_NOE                   21
+#define EN_NCE                   20
 #define EN_NPGM                  EN_NCE
 
 #define SPI_MOSI                 10
@@ -71,12 +73,12 @@
 
 typedef void (*gpioTimerFunc_t)    (void);
 typedef void (*gpioAlertFunc_t)    (int gpio, int level, uint32_t tick);
-typedef void *(gpioThreadFunc_t)   (void*);
+typedef pthread_t *(gpioThreadFunc_t)   (void*);
 
 int gpioCfgClock(unsigned micros, unsigned peripheral, unsigned source);
 int gpioInitialise(void);
 void gpioTerminate(void);
-void* gpioStartThread(gpioThreadFunc_t f, void *userdata);
+pthread_t *gpioStartThread(gpioThreadFunc_t f, void *userdata);
 int gpioSetMode(unsigned gpio, unsigned mode);
 int gpioSetTimerFunc(unsigned timer, unsigned millis, gpioTimerFunc_t f);
 int gpioSetAlertFunc(unsigned user_gpio, gpioAlertFunc_t f);

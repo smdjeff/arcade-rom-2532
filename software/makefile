@@ -3,7 +3,7 @@ ifeq ($(UNAME),raspberrypi)
 LDFLAGS += -lpigpio
 CFLAGS += -DRASPBERRY
 else
-ADD_OBJS = portable.o
+ADD_OBJS = linux/portable.o
 LDFLAGS += 
 endif
 

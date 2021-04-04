@@ -14,19 +14,30 @@
 #define DELAY_US(us) do{ usleep(us); } while(0)    
 #define DELAY_MS(ms) do{ usleep(ms*1000L); } while(0)
 
+// note: do not connect 3.3V it is supplied via the Raspberry Pi
+//       do not connect 5V it is supplied via Raspberry Pi's USB wallwart
+//       VPP is supplied via external power supply
+//       19-25vdc VPP for programming while higher voltages req fewer retries
+//       at least 5.2vdc should be supplied to VPP during read/verify 
 #define _5V         0
 #define _25V        1
+
 #define OFF         0
 #define ON          1
 #define LOW         0
 #define HIGH        1
-#define VCC(v)      do { gpioWrite( EN_VCC, v ); } while(0)
+
+// hack: unfortunately the MAX333 analog switch is only good
+// for up to 30mA and these older EPROMs need 160mA + on VCC
+// so a PNP BJT is bluewired and that's inverting VCC logic  
+#define VCC(v)      do { gpioWrite( EN_VCC, !v ); } while(0)
+
 #define VPP(v)      do { gpioWrite( EN_VPP, v ); } while(0)
 #define NCE(v)      do { gpioWrite( EN_NCE, v ); } while(0)
 #define NPGM(v)     do { gpioWrite( EN_NCE, v ); } while(0)
 #define NOE(v)      do { gpioWrite( EN_NOE, v ); } while(0)
 
-    
+
 typedef enum {
     rom2532,
     rom2716,
@@ -38,24 +49,29 @@ static void romSelect(romType_t romType) {
     switch (romType) {
         case rom2532:
             printf("2532 selected\n");
-            gpioWrite( IO_S18,  0 ); // pin 18 = A11
-            gpioWrite( IO_S20A, 0 ); // pin 20 = nCE
-            gpioWrite( IO_S20B, 0 );
-            gpioWrite( IO_S21,  0 ); // pin 21 = VPP
+            // all pins check out
+            gpioWrite( IO_S18,  0 ); // pin 18  [0:A11] 1:nCE
+            gpioWrite( IO_S20A, 0 ); // pin 20  [0:20B] 1:VPP
+            gpioWrite( IO_S20B, 0 ); //         [0:nCE] 1:nOE
+            gpioWrite( IO_S21,  0 ); // pin 21  [0:VPP] 1:A11
             break;
         case rom2716:
             printf("2716 selected\n");
-            gpioWrite( IO_S18,  1 ); // pin 18 = nCE
-            gpioWrite( IO_S20A, 1 ); // pin 20 =
-            gpioWrite( IO_S20B, 1 ); //          nOE
-            gpioWrite( IO_S21,  0 ); // pin 21 = VPP
+            printf("warning: support for this chip is incomplete\n"); getchar();
+            // nCE and nOE reversed?!?
+            gpioWrite( IO_S18,  1 ); // pin 18  0:A11 [1:nCE]
+            gpioWrite( IO_S20A, 0 ); // pin 20  [0:20B] 1:VPP
+            gpioWrite( IO_S20B, 1 ); //         0:nCE [1:nOE]
+            gpioWrite( IO_S21,  0 ); // pin 21  [0:VPP] 1:A11
             break;
         case rom2732:
             printf("2732 selected\n");
-            gpioWrite( IO_S18,  1 ); // pin 18 = nCE
-            gpioWrite( IO_S20A, 1 ); // pin 20 =
-            gpioWrite( IO_S20B, 1 ); //          nOE
-            gpioWrite( IO_S21,  1 ); // pin 21 = A11
+            printf("warning: support for this chip is incomplete\n"); getchar();
+            // A11 bad, & nCE/nOE issue?
+            gpioWrite( IO_S18,  1 ); // pin 18  0:A11 [1:nCE]
+            gpioWrite( IO_S20A, 1 ); // pin 20  0:20B [1:VPP]
+            gpioWrite( IO_S20B, 1 ); //         0:nCE [1:nOE]
+            gpioWrite( IO_S21,  1 ); // pin 21  0:VPP [1:A11]
             break;
         default:
             assert(false);
@@ -74,9 +90,9 @@ static void dataPinsMode(int mode) {
     }
     // SN74LVCC3245 mode
     if ( mode == PI_OUTPUT ) {        
-        gpioWrite( D_DIR, 1 ); // B data to A bus
+        gpioWrite( D_DIR, 1 ); // A data to B bus
     } else {
-        gpioWrite( D_DIR, 0 ); // A data to B bus
+        gpioWrite( D_DIR, 0 ); // B data to A bus
     }
 }
 
@@ -116,21 +132,21 @@ static void writeAddress(uint16_t addr) {
 }
 
 
-static void writeByte(uint16_t addr, uint8_t b) {
+static void writeByte(uint8_t b) {
     // put the data out on the SN74LVCC3245
     dataPinsMode( PI_OUTPUT );
-    gpioWrite( IO_D0, b & 0b00000001 );
-    gpioWrite( IO_D1, b & 0b00000010 );
-    gpioWrite( IO_D2, b & 0b00000100 );
-    gpioWrite( IO_D3, b & 0b00001000 );
-    gpioWrite( IO_D4, b & 0b00010000 );
-    gpioWrite( IO_D5, b & 0b00100000 );
-    gpioWrite( IO_D6, b & 0b01000000 );
-    gpioWrite( IO_D7, b & 0b10000000 );
+    gpioWrite( IO_D0, (b & 0b00000001)?1:0 );
+    gpioWrite( IO_D1, (b & 0b00000010)?1:0 );
+    gpioWrite( IO_D2, (b & 0b00000100)?1:0 );
+    gpioWrite( IO_D3, (b & 0b00001000)?1:0 );
+    gpioWrite( IO_D4, (b & 0b00010000)?1:0 );
+    gpioWrite( IO_D5, (b & 0b00100000)?1:0 );
+    gpioWrite( IO_D6, (b & 0b01000000)?1:0 );
+    gpioWrite( IO_D7, (b & 0b10000000)?1:0 );
 }
 
 
-static void readByte(uint16_t addr, uint8_t *b) {
+static void readByte(uint8_t *b) {
     // read data in from the SN74LVCC3245
     dataPinsMode( PI_INPUT );
     *b =  gpioRead( IO_D0 );
@@ -157,7 +173,7 @@ static void write2716(uint8_t *data, int sz) {
         NOE( HIGH ); 
         DELAY_US( 1 );
         writeAddress( i );
-        writeByte( i, w );
+        writeByte( w );
         DELAY_US( 2 );
         
         NCE( HIGH ); 
@@ -168,7 +184,7 @@ static void write2716(uint8_t *data, int sz) {
         NOE( LOW ); 
         DELAY_US( 1 );
         uint8_t r = 0xff;
-        readByte( i, &r );
+        readByte( &r );
         if ( r != w ) {
             printf("FAIL ");
         }
@@ -193,7 +209,7 @@ static void write2732(uint8_t *data, int sz) {
         // //*** OE/CE?
         uint8_t w = data[i];
         writeAddress( i );
-        writeByte( i, w );
+        writeByte( w );
         DELAY_US( 2 );
 
         NCE( LOW );  //*** opposite of 2716?
@@ -207,7 +223,7 @@ static void write2732(uint8_t *data, int sz) {
         DELAY_US( 1 );
         
         uint8_t r = 0xff;
-        readByte( i, &r );
+        readByte( &r );
         if ( r != w ) {
             printf("FAIL ");
         }
@@ -238,7 +254,7 @@ static void writeTMS2532(uint8_t *data, int sz) {
         VPP( _25V );
         DELAY_US( 2 );
 
-        writeByte( i, w );
+        writeByte( w );
         DELAY_US( 2 );
 
         NPGM( LOW ); 
@@ -249,7 +265,7 @@ static void writeTMS2532(uint8_t *data, int sz) {
         VPP( _5V );
         
         uint8_t r = 0xff;
-        readByte( i, &r );
+        readByte( &r );
         if ( r != w ) {
             printf("FAIL ");
         }
@@ -272,13 +288,20 @@ static void writeHD2532(uint8_t *data, int sz) {
     // verify correct data being asserted by target
     
     for (int i=0; i<sz; i++ ) {
-        uint8_t w = data[i];
+      uint8_t w = data[i];
+      uint8_t r = 0xff;
+      
+      for (int j=0; j<10; j++ ) {
+
+        NCE( LOW ); 
+        writeAddress( i );
+        readByte( &r );
+        if ( r == w ) { break; } 
 
         NCE( HIGH );
         VPP( _25V );
 
-        writeAddress( i );
-        writeByte( i, w );
+        writeByte( w );
         DELAY_US( 2 );
         
         NCE( LOW ); 
@@ -292,13 +315,16 @@ static void writeHD2532(uint8_t *data, int sz) {
         NCE( LOW );  
         DELAY_US( 1 );
         
-        uint8_t r = 0xff;
-        readByte( i, &r );
-        if ( r != w ) {
-            printf("FAIL ");
+        readByte( &r );
+        if ( r == w ) {
+           break;
+        } else {
+           printf("RETRY addr:%04x wrote:%02x read:%02x\n",i, w, r );
+   	   DELAY_MS( 1000 );
         }
-        printf("addr:%04x wrote:%02x read:%02x\n", i, w, r );
-    }
+      }
+      printf("%saddr:%04x wrote:%02x read:%02x\n",(r==w)?"":"*FAIL* ",i, w, r );
+    } 
 }
 
 
@@ -309,27 +335,30 @@ static void romRead(uint8_t *data, int sz) {
     NCE( LOW );
 
     for (int i=0; i<sz; i++ ) {
-        readByte( i, &data[i] );
+        writeAddress( i );
+        readByte( &data[i] );
     }
 }
 
 
 int main(int argc, char *argv[]) {
 
-    if (argc != 4) {
-       printf("Usage:\n romhat [TMS2532|HD2532|2716|2732] -w|r file\n");
+    if (argc < 4) {
+       printf("Usage:\n romhat [TMS2532|HD2532|2716|2732] -w|r|v|b file\n");
        exit(1);
     }
-
-    gpioInitialise();
-    controlPinsMode( PI_OUTPUT );
-    dataPinsMode( PI_INPUT );
-    gpioWrite( AD_NOE,  0 ); // enables outputs of 595 and 245
-    VCC( ON );
-
     char *type = argv[1];
     char *mode = argv[2];
     char *filename = argv[3];
+
+    assert( gpioInitialise() >= 0 );
+    controlPinsMode( PI_OUTPUT );
+    dataPinsMode( PI_INPUT );
+    gpioWrite( AD_NOE,  0 ); // enables outputs of 595 and 245
+    
+    printf("VCC ON\n"); 
+    VCC( ON );
+
     int romSize = 0;
     void (*romWrite)(uint8_t *data, int sz) = NULL;
 
@@ -354,13 +383,47 @@ int main(int argc, char *argv[]) {
         romWrite = write2732;
     } 
 
+    printf("rom type selection complete\n"); 
+
+    if ( strcasestr( mode, "t" ) ) {
+        printf("pin test\n"); getchar();
+
+	controlPinsMode( PI_OUTPUT ); getchar();
+	controlPinsMode( PI_INPUT ); getchar();
+
+	controlPinsMode( PI_OUTPUT );
+        for (int i=0; i<12; i++) {
+            writeAddress( 1<<i );
+            printf("A%d HI\n",i); getchar();
+        }
+
+	dataPinsMode( PI_OUTPUT ); getchar();
+	dataPinsMode( PI_INPUT ); getchar();
+
+	dataPinsMode( PI_OUTPUT );
+        for (int i=0; i<8; i++) {
+            writeByte( 1<<i );
+            printf("D%d HI\n",i); getchar();
+        }
+	dataPinsMode( PI_INPUT );
+
+        printf("VPP ON\n"); VPP( ON ); getchar();
+        printf("VPP OFF\n"); VPP( OFF );getchar();
+    
+        printf("NCE HIGH\n"); NCE( HIGH ); getchar();
+        printf("NCE LOW\n"); NCE( LOW ); getchar();
+
+        printf("NOE HIGH\n"); NOE( HIGH ); getchar();
+        printf("NOE LOW\n"); NOE( LOW ); getchar();
+    }
+
     if ( strcasestr( mode, "w" ) ) {
         printf("write\n");
 
         if( access( filename, F_OK ) == 0 ) {
             char *data = malloc( romSize );
             assert( data );
-            FILE *fp = fopen( filename, "r" );
+            FILE *fp = fopen( filename, "rb" );
             fread( data, 1, romSize, fp );
             fclose( fp );
             romWrite( data, romSize );
@@ -369,20 +432,81 @@ int main(int argc, char *argv[]) {
         } else {
             printf("file %s doesn't exist\n", filename);
         }
+    }
 
-    } else {
-        printf("read\n");
+    if ( strcasestr( mode, "r" ) ) {
+        printf("reading...\n");
 
         char *data = malloc( romSize );
         assert( data );
         romRead( data, romSize );
-        FILE *fp = fopen( filename, "w" );
+        FILE *fp = fopen( filename, "wb" );
         fwrite( data, 1, romSize, fp );
         fclose( fp );
+        for (int i=0; i<romSize; i++ ) {
+            printf("addr:%04x read:%02x\n", i, data[i] );
+        }
         free( data );
     }  
-    
+
+    if ( strcasestr( mode, "v" ) ) {
+        printf("verifying...\n");
+
+        char *data = malloc( romSize );
+        assert( data );
+        romRead( data, romSize );
+
+        char *datafile = malloc( romSize );
+        assert( datafile );
+        FILE *fp = fopen( filename, "rb" );
+        fread( datafile, 1, romSize, fp );
+
+        int fail = 0;
+        for (int i=0; i<romSize; i++) {
+            printf("addr:%04x file:%02x read:%02x", i, datafile[i], data[i]);
+            if ( data[i] != datafile[i] ) {
+                fail++;
+                printf(" FAIL");
+	    }
+            printf("\n");
+        }
+
+        free( datafile );
+        free( data );
+        if ( fail == 0 ) {
+           printf("PASS\n");
+	} else {
+           printf("FAILED %d of %d bytes\n", fail, romSize); 
+        }
+    }  
+
+    if ( strcasestr( mode, "b" ) ) {
+        printf("blank checking...\n");
+
+        char *data = malloc( romSize );
+        assert( data );
+        romRead( data, romSize );
+
+        int fail = 0;
+        for (int i=0; i<romSize; i++) {
+            printf("addr:%04x read:%02x", i, data[i]);
+            if ( data[i] != 0xff ) {
+                fail++;
+                printf(" FAIL");
+            }
+            printf("\n");
+        }
+        free( data );
+        if ( fail == 0 ) {
+            printf("BLANK\n");
+        } else {
+            printf("FAILED %d of %d bytes\n", fail, romSize);
+        }
+    }
+        
+    printf("VCC OFF\n"); 
     VCC( OFF );
+
     gpioWrite( AD_NOE,  1 ); // disables outputs of 595 and 245
     dataPinsMode( PI_INPUT );
 //    controlPinsMode( PI_INPUT );

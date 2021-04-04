@@ -32,7 +32,7 @@ int gpioSetAlertFunc(unsigned user_gpio, gpioAlertFunc_t f) {
     return 0; 
 }
 
-void* gpioStartThread(gpioThreadFunc_t f, void *userdata) {
+pthread_t *gpioStartThread(gpioThreadFunc_t f, void *userdata) {
     return 0;
 }
 
