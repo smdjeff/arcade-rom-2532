@@ -8,7 +8,9 @@
 #include <sys/time.h>
 #include <assert.h>
 #include <unistd.h>
+
 #include "portable.h"
+#include "getchar_nonblock.h"
 
     
 #define DELAY_US(us) do{ usleep(us); } while(0)    
@@ -57,8 +59,6 @@ static void romSelect(romType_t romType) {
             break;
         case rom2716:
             printf("2716 selected\n");
-            printf("warning: support for this chip is incomplete\n"); getchar();
-            // nCE and nOE reversed?!?
             gpioWrite( IO_S18,  1 ); // pin 18  0:A11 [1:nCE]
             gpioWrite( IO_S20A, 0 ); // pin 20  [0:20B] 1:VPP
             gpioWrite( IO_S20B, 1 ); //         0:nCE [1:nOE]
@@ -109,6 +109,7 @@ static void controlPinsMode(int mode) {
         {SPI_CE0,1}, {SPI_MOSI,0}, {SPI_CLK,0}
     };
     for (int i=0; i<sizeof(pins)/sizeof(pins[0]); i++) {
+        printf("gpio %d value:%d mode:%d\n", pins[i].gpio, pins[i].value, mode );
         gpioWrite( pins[i].gpio, pins[i].value );
         gpioSetMode( pins[i].gpio, mode );
     }
@@ -160,37 +161,56 @@ static void readByte(uint8_t *b) {
 }
 
 
-// Toshiba and Hitachi 2716/2732
+// Intel 2716
 static void write2716(uint8_t *data, int sz) {
-/*
-2716 is:  VPP always at +25V, then for each byte, Pull \OE high, delay 1 usec, assert address, assert data, delay 2 usec, pulse \CE high for 55msec, delay 5 usec, set as inputs, pull \OE low, wait 1usec, verify correct data being asserted by target.
-*/
+    // VPP always at +25V
+    // for each byte, Pull \OE high, delay 1 usec
+    // assert address, assert data, delay 2 usec
+    // pulse \CE high for 55msec
+    // set data as inputs
+    // pull \OE low, wait 1usec
+    // verify correct data being asserted by target.
+
+    NCE( LOW );
+    NOE( LOW );
     VPP( _25V );
     DELAY_US( 2 );
-    
+
     for (int i=0; i<sz; i++ ) {
-        uint8_t w = data[i];
-        NOE( HIGH ); 
+      uint8_t w = data[i];
+      uint8_t r = 0xff;
+
+      for (int j=0; j<10; j++ ) {
+
+        NOE( HIGH );
         DELAY_US( 1 );
+
         writeAddress( i );
         writeByte( w );
         DELAY_US( 2 );
-        
-        NCE( HIGH ); 
+
+        NCE( HIGH );
         DELAY_MS( 55 );
         NCE( LOW );
-        
-        DELAY_US( 5 );
-        NOE( LOW ); 
+
+        dataPinsMode( PI_INPUT );
+
+        DELAY_US( 2 );
+        NOE( LOW );
         DELAY_US( 1 );
-        uint8_t r = 0xff;
+
         readByte( &r );
-        if ( r != w ) {
-            printf("FAIL ");
+        if ( r == w ) {
+           break;
+        } else {
+           printf("RETRY addr:%04x wrote:%02x read:%02x\n",i, w, r );
+   	   DELAY_MS( 250 );
         }
-        printf("addr:%04x wrote:%02x read:%02x\n", i, w, r );
+      }
+
+      printf("%saddr:%04x wrote:%02x read:%02x\n",(r==w)?"":"*FAIL* ",i, w, r );
     }
-    
+
     VPP( _5V );
 }
 
@@ -295,8 +315,8 @@ static void writeHD2532(uint8_t *data, int sz) {
 
         NCE( LOW ); 
         writeAddress( i );
-        readByte( &r );
-        if ( r == w ) { break; } 
+//        readByte( &r );
+//        if ( r == w ) { break; } 
 
         NCE( HIGH );
         VPP( _25V );
@@ -319,7 +339,7 @@ static void writeHD2532(uint8_t *data, int sz) {
         if ( r == w ) {
            break;
         } else {
-           printf("RETRY addr:%04x wrote:%02x read:%02x\n",i, w, r );
+           fprintf(stderr,"RETRY addr:%04x wrote:%02x read:%02x\n",i, w, r );
    	   DELAY_MS( 1000 );
         }
       }
@@ -387,6 +407,23 @@ int main(int argc, char *argv[]) {
 
     if ( strcasestr( mode, "t" ) ) {
         printf("pin test\n"); getchar();
+
+        int gpio[] = { 0,2,3,4,0,17,27,22,0,10,9,11,0,0,5,6,13,19,26,0 };
+	for (int i=0; i<sizeof(gpio)/sizeof(gpio[0]); i++) {
+           if ( gpio[i] == 0 ) {
+              printf("pin:%d skip\n", 1+(i*2));
+              continue;
+           }
+           printf("pin:%d gpio: %d\n", 1+(i*2), gpio[i]);
+	   gpioSetMode( gpio[i], PI_OUTPUT );
+           nonblocking( true );
+           do {
+              DELAY_MS( 500 );
+              int v = !gpioRead( gpio[i] );
+  	      gpioWrite( gpio[i], v );
+           } while ( getchar_nonblock()==0 );
+           nonblocking( false );
+        }
 
 	controlPinsMode( PI_OUTPUT ); getchar();
 	controlPinsMode( PI_INPUT ); getchar();
@@ -466,7 +503,8 @@ int main(int argc, char *argv[]) {
             printf("addr:%04x file:%02x read:%02x", i, datafile[i], data[i]);
             if ( data[i] != datafile[i] ) {
                 fail++;
-                printf(" FAIL");
+                printf(" FAIL\n");
+                sleep(1);
 	    }
             printf("\n");
         }
@@ -492,7 +530,8 @@ int main(int argc, char *argv[]) {
             printf("addr:%04x read:%02x", i, data[i]);
             if ( data[i] != 0xff ) {
                 fail++;
-                printf(" FAIL");
+                printf(" FAIL\n");
+                sleep(1);
             }
             printf("\n");
         }
